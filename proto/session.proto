@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+// =============================================================================
+//  MFR Revival — Netmarble platform SESSION protocol
+//  Reconstructed from client v2.0.3 (com.netmarble.core.nano.*), field numbers
+//  and types read directly from the compiled bytecode — not guessed.
+//
+//  Transport (to confirm from live logs): the client connects to
+//      <gatewayUrl>/sessions?gameCode=<code>&tls=true
+//  via a persistent TCP/WebSocket session and exchanges `BasePacket` frames.
+//  `BasePacket.msg_type` selects the message; the concrete Req/Res/Ntf below is
+//  carried in `BasePacket.payload` (serialized bytes). `sequence` pairs req↔res.
+// =============================================================================
+
+package mfr.session;
+
+// ---------- Core structures ----------
+
+message SessionInfo {
+  string game_code   = 1;
+  string pid         = 2;   // player id
+  string cid         = 3;   // channel id
+  string wid         = 4;   // world id (<= 10 chars)
+  string sid         = 5;   // session id
+  string server_addr = 6;
+  string client_addr = 7;
+  map<string, string> extra_data = 8;
+  repeated SessionProperty session_properties = 9;
+  string device_key  = 10;
+}
+
+message SessionProperty {
+  string key           = 1;
+  string string_value  = 2;
+  int32  int_value     = 3;
+  int64  long_value    = 4;
+  bool   boolen_value  = 5;   // (sic — spelled this way in the client)
+  int32  property_type = 6;   // see PropertyType intent
+  int32  value_type    = 7;
+}
+
+// The wire envelope. Every frame on the session is a BasePacket.
+message BasePacket {
+  string service_code = 1;
+  int32  msg_type     = 2;   // see MsgType
+  int64  sequence     = 3;   // request/response correlation
+  bytes  payload      = 4;   // serialized inner message (SignInReq, etc.)
+  repeated SessionInfo session = 5;
+  int32  multicast_type = 6;  // see MulticastType
+  int32  version        = 7;
+  repeated SessionProperty session_properties = 8;
+  int64  debug          = 99;
+}
+
+message Response { int32 error_code = 1; }
+
+// ---------- Sign-in ----------
+message SignInReq { SessionInfo session = 1; string game_token = 2; }
+message SignInRes { int32 error_code = 1; string error_message = 2; SessionInfo session = 3; }
+
+// ---------- Keepalive ----------
+message PingReq { SessionInfo session = 1; }
+message PingRes { int32 error_code = 1; }
+
+// ---------- Session properties ----------
+message GetSessionPropertyReq { SessionInfo session = 1; }
+message GetSessionPropertyRes {
+  int32 error_code = 1;
+  string error_message = 2;
+  repeated SessionProperty session_properties = 4;  // note: field 3 unused
+}
+message SetSessionPropertyReq { repeated SessionProperty session_properties = 1; }
+message SetSessionPropertyRes {
+  int32 error_code = 1;
+  string error_message = 2;
+  int32 session_property_count = 3;
+  repeated SessionProperty failed_session_properties = 4;
+}
+message DeleteSessionPropertyReq { repeated SessionProperty session_properties = 1; }
+message DeleteSessionPropertyRes {
+  int32 error_code = 1;
+  string error_message = 2;
+  int32 session_property_count = 3;
+  repeated SessionProperty failed_session_properties = 4;
+}
+
+// ---------- Server -> client notifications ----------
+message CloseSessionNtf { int32 cause = 1; string message = 2; }        // cause: see CloseCause
+message StartMaintenanceNtf { int32 maintenance_type = 1; string service_code = 2; string message = 3; }
+message EndMaintenanceNtf   { int32 maintenance_type = 1; string service_code = 2; }
+
+// ---------- Constants (from ClientProtocol / BaseProtocol) ----------
+
+enum MsgType {
+  DUMMY_MSG_TYPE        = 0;
+  SIGN_IN_REQ           = 100;
+  SIGN_IN_RES           = 101;
+  PING_REQ              = 200;
+  PING_RES              = 201;
+  CLOSE_SESSION_NTF     = 302;
+  START_MAINTENANCE_NTF = 310;
+  END_MAINTENANCE_NTF   = 311;
+  SET_PROPERTY_REQ      = 400;
+  SET_PROPERTY_RES      = 401;
+  DELETE_PROPERTY_REQ   = 500;
+  DELETE_PROPERTY_RES   = 501;
+  GET_PROPERTY_REQ      = 600;
+  GET_PROPERTY_RES      = 601;
+}
+
+enum ErrorCode {
+  SUCCESS                 = 0;
+  SERVICE_NOT_AVAILABLE   = 1000;
+  INVALID_PARAM           = 2000;
+  INVALID_GAMECODE        = 2001;
+  INVALID_PID             = 2002;
+  INVALID_SESSION         = 2003;
+  INVALID_SERVICE_CODE    = 2004;
+  INVALID_CID             = 2005;
+  INVALID_WID             = 2006;
+  SET_PROPERTY_REQ_ERROR  = 2400;
+  OVER_LIMIT_PROPERTY_SIZE= 2410;
+  DELETE_PROPERTY_REQ_ERROR = 2500;
+  VERIFY_FAIL             = 3000;
+  ALREADY_SIGNED_IN       = 3001;
+  INACTIVE_SESSION_SERVER = 4000;
+  DISABLE_GAME_SESSION    = 4001;
+  INTERNAL_SERVER_ERROR   = 9999;
+}
+
+enum MulticastType { SID = 0; CID = 1; PID = 2; WID = 3; GAMECODE = 4; }
+
+enum CloseCause {
+  BY_ADMIN          = 0;
+  NOT_SIGNED_IN     = 1;
+  TRIGGER_RECONNECT = 2;
+  MAINTENANCE       = 3;
+  WORLD_ID_MISMATCH = 4;
+}
