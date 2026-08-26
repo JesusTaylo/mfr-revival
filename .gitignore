@@ -1,0 +1,22 @@
+# ============================================================
+#  NUNCA subir binarios/assets del juego (copyright Netmarble)
+# ============================================================
+*.apk
+*.xapk
+*.obb
+*.so
+*.dex
+*.pak
+*.nmss
+*.bin
+*.elf
+main.obb.png
+/assets/
+/lib/
+/extracted/
+/work/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
