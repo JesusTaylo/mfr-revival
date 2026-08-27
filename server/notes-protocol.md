@@ -34,6 +34,24 @@ requests show up in the fake-server logs.
 `gameCode`, `market` (e.g. google), `platform` (ANDROID), `sdkVersion`, `deviceKey`,
 `language`, plus the session `tls=true`.
 
+## Live capture findings (physical Android, PCAPdroid) — v2.0.3
+
+Confirmed hosts the client contacts on boot, before dying at "Failed to download
+configuration file" (servers dead):
+
+- **`projects2.gcdn.netmarble.com`** — Netmarble global CDN ("projects"). **Prime suspect for
+  the config-file download** — appears right before the failure; only reached DNS, no completed
+  transfer. This is the first redirect target.
+- **`nmss.gcdn.netmarble.com`** — NMSS (Netmarble Security) phone-home, over **HTTP :80** (got
+  ~852 B responses). Anti-tamper layer.
+- `netmarbleslog.netmarble.com` — logging (HTTPS 443).
+- `example.com` — likely a connectivity/reachability check (ignore).
+
+Note: the `gcdn`/`projects2` host is NOT a hardcoded string in `libUE4.so` or `classes.dex` —
+it's assembled at runtime or stored in the `.nmss` assets. So the way to learn the exact
+**path + file** is to redirect the host to our server and read the request, or decrypt the
+CDN request in a capture.
+
 ## Known unknowns (fill from logs / logcat)
 
 - [ ] Exact GMC2 URL path + query params
